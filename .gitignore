@@ -1,0 +1,8 @@
+node_modules
+.vs
+/Sources/Apps/ui-1/obj
+/Sources/Apps/ui-1/bin
+*.CopyComplete
+/Sources/Apps/ui-1/publish
+bin
+obj

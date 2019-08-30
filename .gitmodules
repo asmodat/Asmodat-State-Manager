@@ -1,0 +1,8 @@
+[submodule "Asmodat-Standard"]
+	path = Asmodat-Standard
+	url = git@github.com:asmodat/Asmodat-Standard.git
+	branch = master
+[submodule "AWSWrapper"]
+	path = AWSWrapper
+	url = C:\\Users\\asmodat\\Documents\\Visual Studio 2017\\Projects\\AWSWrapper
+	branch = master

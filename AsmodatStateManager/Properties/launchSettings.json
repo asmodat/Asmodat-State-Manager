@@ -1,0 +1,30 @@
+{
+  "iisSettings": {
+    "windowsAuthentication": false,
+    "anonymousAuthentication": true,
+    "iisExpress": {
+      "applicationUrl": "http://localhost:8002/",
+      "sslPort": 0
+    }
+  },
+  "profiles": {
+    "IIS Express": {
+      "commandName": "IISExpress",
+      "commandLineArgs": "8002",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    "AsmodatStateManager": {
+      "commandName": "Project",
+      "commandLineArgs": "8080 \"D:\\GLOBAL\\AsmodatStateManager\\config.json\"",
+      "launchBrowser": true,
+      "launchUrl": "api/test/ping",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "http://localhost:8001/"
+    }
+  }
+}
