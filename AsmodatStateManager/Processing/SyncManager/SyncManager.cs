@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using AsmodatStandard.Extensions.Threading;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Threading;
 
 namespace AsmodatStateManager.Processing
 {
@@ -90,6 +91,8 @@ namespace AsmodatStateManager.Processing
                 result.duration = sw.ElapsedMilliseconds / 1000;
                 _syncResult[st.id] = result;
 
+                await Task.Delay(1000); //rate limiting potential errors
+
             }, maxDegreeOfParallelism: _cfg.parallelism);
         }
 
@@ -103,8 +106,10 @@ namespace AsmodatStateManager.Processing
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to TryProcessUploadAWS, Error Message: {ex.JsonSerializeAsPrettyException()}");
-                return new SyncResult(error: ex?.Message ?? "undefined");
+                var exception = ex.JsonSerializeAsPrettyException();
+                Console.WriteLine($"Failed to TryProcessUploadAWS, Error Message: {exception}");
+                Thread.Sleep(1000); //rate limiting potential errors
+                return new SyncResult(error: exception);
             }
         }
 
@@ -118,8 +123,10 @@ namespace AsmodatStateManager.Processing
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to TryProcessDownloadAWS, Error Message: {ex.JsonSerializeAsPrettyException()}");
-                return new SyncResult(error: ex?.Message ?? "undefined");
+                var exception = ex.JsonSerializeAsPrettyException();
+                Console.WriteLine($"Failed to TryProcessDownloadAWS, Error Message: {exception}");
+                Thread.Sleep(1000); //rate limiting potential errors
+                return new SyncResult(error: exception);
             }
         }
 

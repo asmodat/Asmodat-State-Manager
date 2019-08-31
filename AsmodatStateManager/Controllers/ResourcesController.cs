@@ -11,6 +11,7 @@ using AsmodatStateManager.Model;
 using System.Diagnostics;
 using System.Linq;
 using Microsoft.AspNetCore.Authorization;
+using System.Collections.Generic;
 
 namespace AsmodatStateManager.Controllers
 {
@@ -39,7 +40,16 @@ namespace AsmodatStateManager.Controllers
             if(_cfg.diskHealthChecks.IsNullOrEmpty())
                 return StatusCode(StatusCodes.Status500InternalServerError, "Disk Health Checks configuraiton is not defined.");
 
-            var driveStatus = _pm.GetDriveInfo().Where(x => _cfg.diskHealthChecks.Any(y => x.NameEquals(y.Key)));
+            var drives = new List<DiskInfo>();
+            var driveInfo = _pm.GetDriveInfo();
+            foreach (var di in driveInfo)
+            {
+                if (_cfg.diskHealthChecks.Any(x => di.NameEquals(x.Key)))
+                    drives.Add(di);
+            }
+
+            var checks = _cfg.diskHealthChecks;
+            var driveStatus = driveInfo.Where(x => checks.Any(y => x.NameEquals(y.Key)));
 
             if (driveStatus.IsNullOrEmpty())
                 return StatusCode(StatusCodes.Status500InternalServerError, "No Drive Info");

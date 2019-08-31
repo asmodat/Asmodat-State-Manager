@@ -70,7 +70,7 @@ namespace AsmodatStateManager.Processing
         {
             _S3Helper = st.profile.IsNullOrEmpty() ? 
                 new S3Helper() : 
-                new S3Helper(AWSWrapper.Extensions.Helper.GetCredentials(st.profile));
+                new S3Helper(AWSWrapper.Extensions.Helper.GetAWSCredentials(st.profile));
 
             var bkp = st.destination.ToBucketKeyPair();
             var bucket = bkp.bucket;
