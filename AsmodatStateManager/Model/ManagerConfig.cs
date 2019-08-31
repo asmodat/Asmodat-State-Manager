@@ -32,6 +32,7 @@ namespace AsmodatStateManager.Model
         public int parallelism { get; set; } = 1;
 
         public string targets { get; set; }
+
         public SyncTarget[] GetSyncTargets()
         {
             var direcotry = targets.ToDirectoryInfo();

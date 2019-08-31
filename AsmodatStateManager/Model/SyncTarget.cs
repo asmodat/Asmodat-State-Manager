@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Linq;
 using System.IO;
 using AsmodatStandard.Extensions.IO;
+using System.Collections.Generic;
 
 namespace AsmodatStateManager.Model
 {
@@ -18,13 +19,13 @@ namespace AsmodatStateManager.Model
 
         public static (FileInfo[] files, DirectoryInfo[] directories, DirectoryInfo rootDirectory) GetSourceInfo(this SyncTarget st)
         {
-            FileInfo[] files = null;
+            var files = new List<FileInfo>();
             DirectoryInfo[] directories = null;
             DirectoryInfo rootDirectory = null;
             if (st.source.IsFile())
             {
                 var file = st.source.ToFileInfo();
-                files = new FileInfo[1] { file };
+                files.Add(file);
                 rootDirectory = file.Directory;
                 directories = new DirectoryInfo[1] { rootDirectory };
             }
@@ -32,7 +33,28 @@ namespace AsmodatStateManager.Model
             {
                 rootDirectory = st.source.ToDirectoryInfo();
                 directories = rootDirectory.GetDirectories(recursive: st.recursive).Merge(rootDirectory);
-                files = FileHelper.GetFiles(st.source, recursive: st.recursive);
+                files = FileHelper.GetFiles(st.source, recursive: st.recursive).ToList();
+
+                if (!st.filesIgnore.IsNullOrEmpty() && !files.IsNullOrEmpty()) //remove files that should be ignored
+                    foreach (var ignore in st.filesIgnore)
+                    {
+                        if (ignore.IsNullOrEmpty())
+                            continue;
+
+                        if (files.IsNullOrEmpty())
+                            break;
+
+                        var remove = FileHelper.GetFiles(st.source, recursive: st.recursive, pattern: ignore);
+                        foreach (var r in remove)
+                        {
+                            var toRemove = files.FirstOrDefault(x => x.FullName == r.FullName);
+                            if (toRemove != null)
+                                files.Remove(toRemove);
+
+                            if (files.IsNullOrEmpty())
+                                break;
+                        }
+                    }
             }
             else
             {
@@ -43,7 +65,7 @@ namespace AsmodatStateManager.Model
                     Console.WriteLine(message);
             }
 
-            return (files, directories, rootDirectory);
+            return (files?.ToArray(), directories, rootDirectory);
         }
     }
 
@@ -129,5 +151,7 @@ namespace AsmodatStateManager.Model
         /// Location of the sync target on the local machine.
         /// </summary>
         public string path { get; set; }
+
+        public string[] filesIgnore { get; set; }
     }
 }
