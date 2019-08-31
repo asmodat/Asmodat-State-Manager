@@ -7,11 +7,19 @@ namespace AsmodatStateManager.Model
     {
         public static bool NameEquals(this DiskInfo di, string name)
         {
-            if (di == null || di.name.IsNullOrEmpty() || name.IsNullOrEmpty())
+            var diName = di?.name ?? "";
+
+            if (!diName.ContainsAny("/", "\\", ":")) // in case of linux name is a label
+                diName = di.label;
+
+            if (diName.IsNullOrEmpty() || name.IsNullOrEmpty())
                 return false;
 
-            var s1 = name.ToLower().ReplaceMany((" ", ""), (":", ""), ("/", ""), ("\\", ""));
-            var s2 = di.name?.ToLower().ReplaceMany((" ", ""), (":", ""), ("/", ""), ("\\", ""));
+            if (diName == name)
+                return true;
+
+            var s1 = name.ToLower().ReplaceMany((" ", ""), (":", ""), ("/", ""), ("\\", ""), ("\"", ""));
+            var s2 = diName?.ToLower().ReplaceMany((" ", ""), (":", ""), ("/", ""), ("\\", ""), ("\"", ""));
             return s1 == s2;
         }
     }

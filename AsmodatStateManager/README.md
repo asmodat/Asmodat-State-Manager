@@ -70,8 +70,6 @@ Allowing For Seemless S3 Versioned Backups of any Files
 }
 ```
 
-
-
 ## API Call's examples
 
 ```
@@ -94,4 +92,83 @@ curl -X DELETE -u login:password localhost:8080/api/sync/delete?id=1
 curl -X DELETE -u login:password localhost:8080/api/sync/delete?id=2 
 ```
 
+
+## Installation
+
+> Runtime Installation (fast example, do not use in production)
+
+```
+DOTNET_SDK_VER="2.1.801" && DOTNET_RUNTIME_VER="2.1.8"
+
+rm -f -r -v /usr/bin/dotnet && cd /usr/local/src && \
+ wget https://dotnetcli.azureedge.net/dotnet/Sdk/$DOTNET_SDK_VER/dotnet-sdk-$DOTNET_SDK_VER-linux-x64.tar.gz && \
+ mkdir -p /usr/bin/dotnet && tar zxf dotnet-sdk-$DOTNET_SDK_VER-linux-x64.tar.gz -C /usr/bin/dotnet && \
+ chmod -R 777 /usr/bin/dotnet && dotnet --version
+
+cd /usr/local/src && \
+ wget https://dotnetcli.azureedge.net/dotnet/aspnetcore/Runtime/$DOTNET_RUNTIME_VER/aspnetcore-runtime-$DOTNET_RUNTIME_VER-linux-x64.tar.gz \
+ && tar zxf aspnetcore-runtime-$DOTNET_RUNTIME_VER-linux-x64.tar.gz -C /usr/bin/dotnet \
+ && chmod -R 777 /usr/bin/dotnet \
+ && dotnet --version && dotnet --list-runtimes
+
+echo "export DOTNET_ROOT=/usr/bin/dotnet" >> /etc/profile && \
+ echo "export PATH=\$PATH:/usr/bin/dotnet" >> /etc/profile &&
+ echo "source /etc/profile" >> $HOME/.bashrc && source /etc/profile
+```
+
+> Asmodat State Manger Installation
+
+```
+STATE_MGR_VER="0.0.1" && cd /usr/local/src && rm -f -v ./AsmodatStateManager-linux-x64.zip && \
+ wget https://github.com/asmodat/Asmodat-State-Manager/releases/download/$STATE_MGR_VER/AsmodatStateManager-linux-x64.zip && \
+ rm -rfv /usr/local/bin/AsmodatStateManager && unzip AsmodatStateManager-linux-x64.zip -d /usr/local/bin/AsmodatStateManager && \
+ chmod -R 777 /usr/local/bin/AsmodatStateManager
+
+ ln -s /usr/local/bin/AsmodatStateManager/AsmodatStateManager /usr/local/bin/asmanager
+
+ mkdir $HOME/.asmanager && mkdir $HOME/.asmanager/sync
+ ```
+
+> Appending, manager config with `nano $HOME/.asmanager/config.json`
+
+_Note: Make sure `echo $HOME` return /home/ubuntu_
+
+```
+{
+	"ManagerConfig": {
+		"version": "0.0.1",
+		"default-aws-role": "",
+		"login": "login",
+		"password": "password",
+		"diskHealthChecks": { "/": 90, "c": 90 },
+		"parallelism": 2,
+		"targets": "/home/ubuntu/.asmanager/sync"
+	}
+}
+```
+
+> Create new service by appending following script using `nano /lib/systemd/system/asmanager.service` command.
+
+```
+[Unit]
+Description=Asmodat State Manager
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/asmanager 8080 "/home/ubuntu/.asmanager/config.json"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+
+```
+> Enable service, start and check logs
+
+```
+systemctl enable asmanager && systemctl restart asmanager
+
+journalctl --unit=asmanager -n 100 --no-pager
+```
 
