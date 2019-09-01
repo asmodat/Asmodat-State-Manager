@@ -54,8 +54,8 @@ namespace AsmodatStateManager.Processing
             if (status == null)
                 throw new Exception($"Could not download latest data from the source '{st.source}', status file was not found in '{st?.status ?? "undefined"}' within time range of <{st.minTimestamp.ToDateTimeFromTimestamp().ToLongDateTimeString()},{st.maxTimestamp.ToDateTimeFromTimestamp().ToLongDateTimeString()}>");
 
-            if (st.maxSyncCount > 0 && downloadStatus.counter >= st.maxSyncCount) //maximum number of syncs is defined
-            {
+            if (downloadStatus.finalized && (st.maxSyncCount > 0 && downloadStatus.counter >= st.maxSyncCount))
+            { //if already finalized and maximum number of syncs is defined and counter didn't hit max number of sync
                 Console.WriteLine($"Download sync file '{st.status}' was already finalized maximum number of {st.maxSyncCount}");
                 await Task.Delay(millisecondsDelay: 1000);
                 return new SyncResult(success: true);
@@ -72,7 +72,7 @@ namespace AsmodatStateManager.Processing
             }
 
             _syncInfo[st.id] = new SyncInfo(st);
-            _syncInfo[st.id].total = status.files.Sum(x => x.Length);
+            _syncInfo[st.id].total = status.files.Sum(x => x?.Length ?? 0);
             _syncInfo[st.id].timestamp = timestamp;
 
             int counter = 0;
@@ -80,6 +80,9 @@ namespace AsmodatStateManager.Processing
             directories.Add(st.destination.ToDirectoryInfo());
             foreach (var dir in status.directories)
             {
+                if (dir == null)
+                    continue;
+
                 var relativeDir = dir.FullName.TrimStart(status.source);
                 var downloadDir = PathEx.RuntimeCombine(st.destination, relativeDir).ToDirectoryInfo();
 
@@ -109,6 +112,9 @@ namespace AsmodatStateManager.Processing
             var speedList = new List<double>();
             await ParallelEx.ForEachAsync(status.files, async file =>
             {
+                if (file == null)
+                    return;
+
                 try
                 {
                     var relativePath = file.FullName.TrimStart(status.source);

@@ -100,13 +100,13 @@ namespace AsmodatStateManager.Processing
             Console.WriteLine($"Sync file '{st.status}' was finalized {elspased}s ago (intensity: {st.intensity}, finalization: {(status.finalized ? "yes": "no")}). Starting new sync...");
 
             _syncInfo[st.id] = new SyncInfo(st);
-            _syncInfo[st.id].total = sourceInfo.files.Sum(x => x.Length);
+            _syncInfo[st.id].total = sourceInfo.files.Sum(x => x?.Length ?? 0);
             _syncInfo[st.id].timestamp = timestamp;
 
             var cleanupTask = Cleanup(st, status);
 
             var isStatusFileUpdated = false;
-            var files = new ConcurrentBag<SilyFileInfo>();
+            var files = new List<SilyFileInfo>();
 
             var speedList = new List<double>();
             await ParallelEx.ForEachAsync(sourceInfo.files, async file =>
@@ -122,9 +122,14 @@ namespace AsmodatStateManager.Processing
                     {
                         if (uploadedFile.LastWriteTime == file.LastWriteTime.ToUnixTimestamp())
                         {
-                            Console.WriteLine($"Skipping upload of '{file.FullName}', file did not changed since last upload.");
-                            files.Add(uploadedFile);
-                            lock (_locker) ++counter;
+                            if(st.verbose > 1)
+                                Console.WriteLine($"Skipping upload of '{file.FullName}', file did not changed since last upload.");
+
+                            lock (_locker)
+                            {
+                                files.Add(uploadedFile);
+                                ++counter;
+                            }
                             return; //do not uplad, file did not changed
                         }
 
@@ -132,13 +137,18 @@ namespace AsmodatStateManager.Processing
                         destination = $"{key}/{localMD5}";
                         if (localMD5 == uploadedFile.MD5)
                         {
-                            Console.WriteLine($"Skipping upload of '{file.FullName}', file alredy exists in the '{bucket}/{destination}'.");
-                            files.Add(uploadedFile);
-                            lock (_locker) ++counter;
+                            if (st.verbose > 1)
+                                Console.WriteLine($"Skipping upload of '{file.FullName}', file alredy exists in the '{bucket}/{destination}'.");
+
+                            lock (_locker)
+                            {
+                                ++counter;
+                                files.Add(uploadedFile);
+                            }
                             return;
                         }
                     }
-                    else
+                    else //file was not uploaded to AWS yet
                     {
                         localMD5 = file.MD5().ToHexString();
                         destination = $"{key}/{localMD5}";
@@ -146,9 +156,13 @@ namespace AsmodatStateManager.Processing
                             .Timeout(msTimeout: st.timeout)
                             .TryCatchRetryAsync(maxRepeats: st.retry))
                         {
-                            files.Add(uploadedFile);
-                            lock (_locker) ++counter;
-                            Console.WriteLine($"Skipping upload of '{file.FullName}', file was found in the '{bucket}/{destination}'.");
+                            lock (_locker)
+                            {
+                                ++counter;
+                                files.Add(file.ToSilyFileInfo(md5: localMD5));
+                            }
+                            if (st.verbose > 1)
+                                Console.WriteLine($"Skipping upload of '{file.FullName}', file was found in the '{bucket}/{destination}'.");
                             return;
                         }
                     }
@@ -168,7 +182,6 @@ namespace AsmodatStateManager.Processing
                         }
 
                         ++counter;
-                        Console.WriteLine($"Uploading [{counter}/{sourceInfo.files.Length}][{file.Length}B] '{file.FullName}' => '{bucket}/{destination}' ...");
                     }
 
                     async Task<string> UploadFile()
@@ -193,7 +206,11 @@ namespace AsmodatStateManager.Processing
                         }
                     }
 
+                    Console.WriteLine($"Uploading [{counter}/{sourceInfo.files.Length}][{file.Length}B] '{file.FullName}' => '{bucket}/{destination}' ...");
                     var md5 = await UploadFile().TryCatchRetryAsync(maxRepeats: st.retry);
+
+                    if(md5 != localMD5)
+                        Console.WriteLine($"Warning! file changed during upload '{file.FullName}' => '{bucket}/{destination}'.");
 
                     if (!md5.IsNullOrEmpty())
                     {

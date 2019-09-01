@@ -80,8 +80,8 @@ namespace AsmodatStateManager.Processing
         public async Task<StatusFile> GetStatusFile(SyncTarget st, string statusPrefix)
         {
             var bkp = st.status.ToBucketKeyPair();
-            var prefix = $"{bkp.key}/{UploadStatusFilePrefix}";
-            var list = await GetStatusList(st, UploadStatusFilePrefix);
+            var prefix = $"{bkp.key}/{statusPrefix}";
+            var list = await GetStatusList(st, statusPrefix);
 
             var id = list.IsNullOrEmpty() ? 0 : list.Last().Key.TrimStart(prefix).TrimEnd(".json").ToLongOrDefault(0); //latest staus id
             id = id <= 0 ? DateTimeEx.TimestampNow() : id;

@@ -171,4 +171,3 @@ systemctl enable asmanager && systemctl restart asmanager
 
 journalctl --unit=asmanager -n 100 --no-pager
 ```
-
