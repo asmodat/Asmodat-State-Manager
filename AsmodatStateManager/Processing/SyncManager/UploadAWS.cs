@@ -20,6 +20,7 @@ using AsmodatStandard.Types;
 using System.Collections.Generic;
 using System.Threading;
 using System.Diagnostics;
+using System.IO;
 
 namespace AsmodatStateManager.Processing
 {
@@ -179,7 +180,11 @@ namespace AsmodatStateManager.Processing
                             return null;
 
                         var hashExternal = file.MD5().ToHexString();
-                        using (var fs = file.OpenRead()) //upload new file to AWS
+                        using (var fs = File.Open( //upload new file to AWS
+                            file.FullName, 
+                            FileMode.Open, 
+                            FileAccess.Read, 
+                            EnumEx.ToEnum<FileShare>(st.filesShare)))
                         {
                             var hash = await _S3Helper.UploadStreamAsync(bucketName: bucket,
                                  key: destination,

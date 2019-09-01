@@ -91,7 +91,12 @@ namespace AsmodatStateManager.Processing
                 result.duration = sw.ElapsedMilliseconds / 1000;
                 _syncResult[st.id] = result;
 
-                await Task.Delay(1000); //rate limiting potential errors
+                if (st.sleep >= 0)
+                {
+                    var sleep = st.sleep + 1000;
+                    Console.WriteLine($"Sync Task {st.id} was compleated, result: {(result.success ? "success":"failure")}, sleep: {st.sleep} [ms].");
+                    await Task.Delay(st.sleep);
+                }
 
             }, maxDegreeOfParallelism: _cfg.parallelism);
         }

@@ -153,5 +153,15 @@ namespace AsmodatStateManager.Model
         public string path { get; set; }
 
         public string[] filesIgnore { get; set; }
+
+        /// <summary>
+        /// Share mores: None, ReadWrite
+        /// </summary>
+        public string filesShare { get; set; } = "None";
+
+        /// <summary>
+        /// Defines how long in ms sync should sleep after completition
+        /// </summary>
+        public int sleep { get; set; } = 0;
     }
 }
