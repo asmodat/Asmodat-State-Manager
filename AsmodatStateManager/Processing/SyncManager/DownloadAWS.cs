@@ -36,10 +36,6 @@ namespace AsmodatStateManager.Processing
     {
         public async Task<SyncResult> DownloadAWS(SyncTarget st)
         {
-            _S3Helper = st.profile.IsNullOrEmpty() ?
-                new S3Helper() :
-                new S3Helper(AWSWrapper.Extensions.Helper.GetAWSCredentials(st.profile));
-
             var bkp = st.source.ToBucketKeyPair();
             var bucket = bkp.bucket;
             var timestamp = DateTimeEx.UnixTimestampNow();
@@ -125,8 +121,7 @@ namespace AsmodatStateManager.Processing
                     if (downloadPath.Exists && downloadPath.TryDelete() != true)
                         throw new Exception($"Obsolete file was found in '{downloadPath?.FullName ?? "undefined"}' but couldn't be deleted.");
 
-                    var key = $"{st.source.TrimEnd('/')}/{status.id}/{relativePath.Trim("/").ToLinuxPath().Trim("/")}"
-                                .TrimStartSingle(bucket).Trim("/");
+                    var key = $"{st.source.TrimEnd('/')}/{file.MD5}";
 
                     ++counter;
                     if (st.verbose >= 1) Console.WriteLine($"Downloading [{counter}/{status.files.Length}][{file.Length}B] '{bucket}/{key}' => '{downloadPath.FullName}' ...");

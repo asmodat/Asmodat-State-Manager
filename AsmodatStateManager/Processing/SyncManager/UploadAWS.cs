@@ -26,8 +26,6 @@ namespace AsmodatStateManager.Processing
 {
     public partial class SyncManager
     {
-        
-
         public async Task<bool> Cleanup(SyncTarget st, StatusFile sf)
         {
             if (sf.obsoletes.IsNullOrEmpty())
@@ -42,24 +40,17 @@ namespace AsmodatStateManager.Processing
                 var cts = new CancellationTokenSource();
 
                 var id = file.TrimStart(prefix).TrimEnd(".json").ToLongOrDefault(0);
-                var folderLocation = $"{st.destination.TrimEnd('/','\\')}/{id}";
-                var folderBKP = folderLocation.ToBucketKeyPair();
-                var result = await _S3Helper.DeleteDirectoryAsync(folderBKP.bucket, folderBKP.key, throwOnFailure: false, cancellationToken: cts.Token)
-                                            .TryCancelAfter(cts.Token, msTimeout: st.timeout);
-                lock (_locker)
-                    success = success && result;
-                if (result)
-                {
-                    result = await _S3Helper.DeleteObjectAsync(bucketName: folderBKP.bucket, key: file, throwOnFailure: false, cancellationToken: cts.Token)
-                                            .TryCancelAfter(cts.Token, msTimeout: st.timeout);
-                    lock (_locker)
-                        success = success && result;
-                }
+                var folderBKP = st.destination.ToBucketKeyPair();
+                var result = await _S3Helper.DeleteObjectAsync(
+                    bucketName: folderBKP.bucket, 
+                    key: file, 
+                    throwOnFailure: false, 
+                    cancellationToken: cts.Token).TryCancelAfter(cts.Token, msTimeout: st.timeout);
 
                 if(success)
-                    Console.WriteLine($"Status file: '{folderBKP.bucket}/{file}' and coresponding directory '{folderBKP.bucket}/{folderBKP.key}' was removed.");
+                    Console.WriteLine($"Status file: '{folderBKP.bucket}/{file}' was removed.");
                 else
-                    Console.WriteLine($"Failed to remove status file: '{folderBKP.bucket}/{file}' or coresponding directory '{folderBKP.bucket}/{folderBKP.key}'.");
+                    Console.WriteLine($"Failed to remove status file: '{folderBKP.bucket}/{file}'.");
 
             }, maxDegreeOfParallelism: _cfg.parallelism);
 
@@ -69,10 +60,6 @@ namespace AsmodatStateManager.Processing
 
         public async Task<SyncResult> UploadAWS(SyncTarget st)
         {
-            _S3Helper = st.profile.IsNullOrEmpty() ? 
-                new S3Helper() : 
-                new S3Helper(AWSWrapper.Extensions.Helper.GetAWSCredentials(st.profile));
-
             var bkp = st.destination.ToBucketKeyPair();
             var bucket = bkp.bucket;
             var key = bkp.key;
@@ -110,6 +97,8 @@ namespace AsmodatStateManager.Processing
                 return new SyncResult(success: true);
             }
 
+            Console.WriteLine($"Sync file '{st.status}' was finalized {elspased}s ago (intensity: {st.intensity}, finalization: {(status.finalized ? "yes": "no")}). Starting new sync...");
+
             _syncInfo[st.id] = new SyncInfo(st);
             _syncInfo[st.id].total = sourceInfo.files.Sum(x => x.Length);
             _syncInfo[st.id].timestamp = timestamp;
@@ -125,32 +114,41 @@ namespace AsmodatStateManager.Processing
                 try
                 {
                     var sw = Stopwatch.StartNew();
-                    var destination = $"{key}/{status.id}/" + file.FullName.TrimStartSingle(sourceInfo.rootDirectory.FullName)
-                        .TrimStart('/', '\\')
-                        .Replace("\\", "/");
+                    var uploadedFile = status.files?.FirstOrDefault(x => x.FullNameEqual(file));
 
-                    var uploadedFile = status.files?.FirstOrDefault(x => x.FullName.ToLower().Trim() == file.FullName.ToLower().Trim());
-
+                    string localMD5;
+                    string destination;
                     if (uploadedFile != null) //file was already uploaded to AWS
                     {
                         if (uploadedFile.LastWriteTime == file.LastWriteTime.ToUnixTimestamp())
                         {
-                            lock (_locker)
-                            {
-                                files.Add(uploadedFile);
-                                ++counter;
-                            }  
+                            Console.WriteLine($"Skipping upload of '{file.FullName}', file did not changed since last upload.");
+                            files.Add(uploadedFile);
+                            lock (_locker) ++counter;
                             return; //do not uplad, file did not changed
                         }
 
-                        if (file.MD5().ToHexString() == uploadedFile.MD5)
+                        localMD5 = file.MD5().ToHexString();
+                        destination = $"{key}/{localMD5}";
+                        if (localMD5 == uploadedFile.MD5)
                         {
-                            Console.WriteLine($"Skipping upload of '{file.FullName}', file with MD5 '{uploadedFile.MD5}' alredy exists in the '{bucket}/{destination}'.");
-                            lock (_locker)
-                            {
-                                ++counter;
-                                files.Add(uploadedFile);
-                            }
+                            Console.WriteLine($"Skipping upload of '{file.FullName}', file alredy exists in the '{bucket}/{destination}'.");
+                            files.Add(uploadedFile);
+                            lock (_locker) ++counter;
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        localMD5 = file.MD5().ToHexString();
+                        destination = $"{key}/{localMD5}";
+                        if (await _S3Helper.ObjectExistsAsync(bucketName: bucket, key: $"{key}/{localMD5}")
+                            .Timeout(msTimeout: st.timeout)
+                            .TryCatchRetryAsync(maxRepeats: st.retry))
+                        {
+                            files.Add(uploadedFile);
+                            lock (_locker) ++counter;
+                            Console.WriteLine($"Skipping upload of '{file.FullName}', file was found in the '{bucket}/{destination}'.");
                             return;
                         }
                     }
@@ -170,7 +168,7 @@ namespace AsmodatStateManager.Processing
                         }
 
                         ++counter;
-                        if (st.verbose >= 1) Console.WriteLine($"Uploading [{counter}/{sourceInfo.files.Length}][{file.Length}B] '{file.FullName}' => '{bucket}/{destination}' ...");
+                        Console.WriteLine($"Uploading [{counter}/{sourceInfo.files.Length}][{file.Length}B] '{file.FullName}' => '{bucket}/{destination}' ...");
                     }
 
                     async Task<string> UploadFile()
@@ -179,7 +177,6 @@ namespace AsmodatStateManager.Processing
                         if (file == null || !file.Exists)
                             return null;
 
-                        var hashExternal = file.MD5().ToHexString();
                         using (var fs = File.Open( //upload new file to AWS
                             file.FullName, 
                             FileMode.Open, 
@@ -220,7 +217,6 @@ namespace AsmodatStateManager.Processing
             }, maxDegreeOfParallelism: st.parallelism);
 
             var directories = sourceInfo.directories.Select(x => x.ToSilyDirectoryInfo()).ToArray();
-            var cleanupResult = await cleanupTask;
             var avgSpeed = speedList.IsNullOrEmpty() ? double.NaN : speedList.Average();
 
             if (isStatusFileUpdated || //if modifications were made to files

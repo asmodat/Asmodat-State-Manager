@@ -67,6 +67,10 @@ namespace AsmodatStateManager.Processing
                 if (st.type == SyncTarget.types.none)
                     return;
 
+                _S3Helper = st.profile.IsNullOrEmpty() ?
+                    new S3Helper() :
+                    new S3Helper(AWSWrapper.Extensions.Helper.GetAWSCredentials(st.profile));
+
                 SyncResult result;
                 if (st.type == SyncTarget.types.awsUpload)
                 {
