@@ -54,20 +54,11 @@ namespace AsmodatStateManager.Processing
             if (status == null)
                 throw new Exception($"Could not download latest data from the source '{st.source}', status file was not found in '{st?.status ?? "undefined"}' within time range of <{st.minTimestamp.ToDateTimeFromTimestamp().ToLongDateTimeString()},{st.maxTimestamp.ToDateTimeFromTimestamp().ToLongDateTimeString()}>");
 
-            if (downloadStatus.finalized && (st.maxSyncCount > 0 && downloadStatus.counter >= st.maxSyncCount))
-            { //if already finalized and maximum number of syncs is defined and counter didn't hit max number of sync
-                Console.WriteLine($"Download sync file '{st.status}' was already finalized maximum number of {st.maxSyncCount}");
-                await Task.Delay(millisecondsDelay: 1000);
-                return new SyncResult(success: true);
-            }
-
-            var elspased = DateTimeEx.UnixTimestampNow() - downloadStatus.timestamp;
-            if (downloadStatus.finalized && elspased < st.intensity)
+            if (downloadStatus.finalized)
             {
-                var remaining = st.intensity - elspased;
-                var delay = Math.Min(Math.Max((remaining * 1000) >= int.MaxValue ? 0 : (int)(remaining - 1000), 0), 1000);
-                Console.WriteLine($"Download sync file '{st.status}' was finalized {elspased}s ago. Next sync in {st.intensity - elspased}s.");
-                await Task.Delay(millisecondsDelay: (int)(delay * 1000));
+                var elspased = DateTimeEx.UnixTimestampNow() - downloadStatus.timestamp;
+                Console.WriteLine($"Download sync file '{st.status}' was already finalized {elspased}s ago.");
+                await Task.Delay(millisecondsDelay: 1000);
                 return new SyncResult(success: true);
             }
 
@@ -127,7 +118,7 @@ namespace AsmodatStateManager.Processing
                     if (downloadPath.Exists && downloadPath.TryDelete() != true)
                         throw new Exception($"Obsolete file was found in '{downloadPath?.FullName ?? "undefined"}' but couldn't be deleted.");
 
-                    var key = $"{st.source.TrimEnd('/')}/{file.MD5}";
+                    var key = $"{st.source.TrimEnd('/')}/{file.MD5}".ToBucketKeyPair().key;
 
                     ++counter;
                     if (st.verbose >= 1) Console.WriteLine($"Downloading [{counter}/{status.files.Length}][{file.Length}B] '{bucket}/{key}' => '{downloadPath.FullName}' ...");
@@ -181,7 +172,6 @@ namespace AsmodatStateManager.Processing
             }
 
             downloadStatus.finalized = true;
-            downloadStatus.counter += 1;
             var uploadResult = await _S3Helper.UploadJsonAsync(downloadStatus.bucket, downloadStatus.key, downloadStatus)
                 .Timeout(msTimeout: st.timeout)
                 .TryCatchRetryAsync(maxRepeats: st.retry);

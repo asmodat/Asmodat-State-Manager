@@ -97,13 +97,18 @@ namespace AsmodatStateManager.Model
         /// Used to verify MD5 checksum
         /// </summary>
         public bool verify { get; set; } = false;
-        public int retry { get; set; } = 1;
 
+        /// <summary>
+        /// Defines wheather or not not used files should be cleaned up
+        /// </summary>
+        public bool cleanup { get; set; } = false;
+
+        public int retry { get; set; } = 1;
 
         public int rotation { get; set; } = 3;
 
         /// <summary>
-        /// seconds 
+        /// Seconds time after which status file becomes obsolete
         /// </summary>
         public int retention { get; set; } = 0;
 
@@ -111,11 +116,6 @@ namespace AsmodatStateManager.Model
         /// Status file location
         /// </summary>
         public string status { get; set; }
-
-        /// <summary>
-        /// Time to retry operation in s
-        /// </summary>
-        public int intensity { get; set; }
 
         /// <summary>
         /// Maximum degree of parallelism
@@ -140,12 +140,6 @@ namespace AsmodatStateManager.Model
         public long minTimestamp { get; set; }
 
         public int timeout { get; set; } = int.MaxValue;
-
-        /// <summary>
-        /// Max Sync Count
-        /// 0 = infinite
-        /// </summary>
-        public int maxSyncCount { get; set; } = 0;
 
         /// <summary>
         /// Location of the sync target on the local machine.

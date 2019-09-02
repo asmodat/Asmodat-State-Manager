@@ -57,7 +57,6 @@ namespace AsmodatStateManager.Processing
             return success;
         }
 
-
         public async Task<SyncResult> UploadAWS(SyncTarget st)
         {
             var bkp = st.destination.ToBucketKeyPair();
@@ -79,36 +78,25 @@ namespace AsmodatStateManager.Processing
             var counter = 0;
 
             var status = await GetStatusFile(st, UploadStatusFilePrefix);
+            var elspased = DateTimeEx.UnixTimestampNow() - status.timestamp;
 
-            if (st.maxSyncCount > 0 && status.counter >= st.maxSyncCount) //maximum number of syncs is defined
+            if (status.finalized)
             {
-                Console.WriteLine($"Upload sync file '{st.status}' was already finalized maximum number of {st.maxSyncCount}");
+                var remaining = st.retention - elspased;
+                Console.WriteLine($"Upload sync file '{st.status}' was already finalized {elspased}s ago. Next sync in {st.retention - elspased}s.");
                 await Task.Delay(millisecondsDelay: 1000);
                 return new SyncResult(success: true);
             }
-
-            var elspased = DateTimeEx.UnixTimestampNow() - status.timestamp;
-            if (status.finalized && elspased < st.intensity)
-            {
-                var remaining = st.intensity - elspased;
-                var delay = Math.Min(Math.Max((remaining * 1000) >= int.MaxValue ? 0 : (int)(remaining - 1000), 0), 1000);
-                Console.WriteLine($"Upload sync file '{st.status}' was finalized {elspased}s ago. Next sync in {st.intensity - elspased}s.");
-                await Task.Delay(millisecondsDelay: (int)(delay * 1000));
-                return new SyncResult(success: true);
-            }
-
-            Console.WriteLine($"Sync file '{st.status}' was finalized {elspased}s ago (intensity: {st.intensity}, finalization: {(status.finalized ? "yes": "no")}). Starting new sync...");
 
             _syncInfo[st.id] = new SyncInfo(st);
             _syncInfo[st.id].total = sourceInfo.files.Sum(x => x?.Length ?? 0);
             _syncInfo[st.id].timestamp = timestamp;
 
-            var cleanupTask = Cleanup(st, status);
-
+            var cleanup = st.cleanup ? Cleanup(st, status) : null;
             var isStatusFileUpdated = false;
             var files = new List<SilyFileInfo>();
-
             var speedList = new List<double>();
+
             await ParallelEx.ForEachAsync(sourceInfo.files, async file =>
             {
                 try
@@ -236,12 +224,14 @@ namespace AsmodatStateManager.Processing
             var directories = sourceInfo.directories.Select(x => x.ToSilyDirectoryInfo()).ToArray();
             var avgSpeed = speedList.IsNullOrEmpty() ? double.NaN : speedList.Average();
 
+            if (cleanup != null)
+                await cleanup;
+
             if (isStatusFileUpdated || //if modifications were made to files
                 !status.directories.JsonEquals(directories)) // or directories
             {
                 status.files = files.ToArray();
                 status.finalized = true;
-                status.counter += 1;
                 status.directories = directories;
                 status.source = st.source;
                 status.destination = st.destination;

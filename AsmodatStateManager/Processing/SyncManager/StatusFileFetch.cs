@@ -105,9 +105,8 @@ namespace AsmodatStateManager.Processing
                 .Timeout(msTimeout: st.timeout)
                 .TryCatchRetryAsync(maxRepeats: st.retry);
 
-            var counter = status.counter; //defines how many times sync target was saved sucesfully
             var elapsed = (DateTime.UtcNow - long.Parse(status?.id ?? "0").ToDateTimeFromTimestamp()).TotalSeconds;
-            if(status == null || status.finalized == true && st.retention > 0 && elapsed > st.retention)
+            if(status == null || (status.finalized == true && st.retention > 0 && elapsed > st.retention))
             {
                 id = DateTimeEx.TimestampNow();
                 key = $"{prefix}{id}.json";
@@ -119,12 +118,11 @@ namespace AsmodatStateManager.Processing
                     key = key,
                     location = $"{bkp.bucket}/{key}",
                     finalized = false,
-                    version = 0,
-                    counter = counter
+                    version = 0
                 };
             }
 
-            if(st.rotation > 0 && list.Count > st.rotation)
+            if(st.cleanup && st.rotation > 0 && list.Count > st.rotation)
             {
                 var validStatus = new List<StatusFile>();
                 list.Reverse();

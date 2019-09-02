@@ -86,6 +86,6 @@ namespace AsmodatStateManager.Model
         /// <summary>
         /// Defines how many times file was synced sucesfully
         /// </summary>
-        public long counter { get; set; } = 0;
+        //public long counter { get; set; } = 0;
     }
 }
